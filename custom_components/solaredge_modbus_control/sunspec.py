@@ -29,6 +29,11 @@ REG_RAMP_UP = 0xF318
 REG_RAMP_DOWN = 0xF31A
 REG_DYNAMIC_LIMIT = 0xF322
 
+# Export control (meter based site export limit), read only here.
+REG_EXPORT_MODE = 0xE000
+REG_EXPORT_LIMIT_MODE = 0xE001
+REG_EXPORT_SITE_LIMIT = 0xE002
+
 # key -> (address, kind); kind: f32 / i32 / u32 (low word first) or i16.
 CONFIG_REGISTERS: dict[str, tuple[int, str]] = {
     "max_active_power": (REG_MAX_ACTIVE_POWER, "f32"),
@@ -40,6 +45,9 @@ CONFIG_REGISTERS: dict[str, tuple[int, str]] = {
     "fallback_limit": (REG_FALLBACK_LIMIT, "f32"),
     "ramp_up_rate": (REG_RAMP_UP, "f32"),
     "ramp_down_rate": (REG_RAMP_DOWN, "f32"),
+    "export_control_mode": (REG_EXPORT_MODE, "i16"),
+    "export_limit_mode": (REG_EXPORT_LIMIT_MODE, "i16"),
+    "export_site_limit": (REG_EXPORT_SITE_LIMIT, "f32"),
 }
 KIND_REGISTERS = {"f32": 2, "i32": 2, "u32": 2, "i16": 1}
 
@@ -53,6 +61,8 @@ STATUS_LABELS = {
     7: "Fault",
     8: "Standby",
 }
+
+STATUS_THROTTLED = 5
 
 _NOT_IMPLEMENTED = {-32768, 65535, 4294967295}
 
@@ -96,11 +106,17 @@ def _unpack(fmt: str, registers: list[int]) -> tuple[Any, ...]:
 
 
 def decode_ac(registers: list[int]) -> dict[str, float | None]:
-    """AC side: current, voltage, power, frequency, apparent/reactive power, factor, energy."""
+    """AC side: current and voltage (total and per phase), power, frequency, apparent/reactive power, factor, energy."""
     v = _unpack(_AC_FORMAT, registers)
     return {
         "ac_current": scale(v[0], v[4]),
+        "ac_current_a": scale(v[1], v[4]),
+        "ac_current_b": scale(v[2], v[4]),
+        "ac_current_c": scale(v[3], v[4]),
         "ac_voltage": scale(v[8], v[11]),
+        "ac_voltage_a": scale(v[8], v[11]),
+        "ac_voltage_b": scale(v[9], v[11]),
+        "ac_voltage_c": scale(v[10], v[11]),
         "ac_power": scale(v[12], v[13]),
         "ac_frequency": scale(v[14], v[15]),
         "ac_apparent_power": scale(v[16], v[17]),

@@ -5,14 +5,14 @@ from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from pytest_homeassistant_custom_component.components.diagnostics import get_diagnostics_for_config_entry
 
 from custom_components.solaredge_modbus_control.const import DOMAIN
 from custom_components.solaredge_modbus_control.sunspec import REG_MAX_ACTIVE_POWER, encode_float32
-from tests.conftest import AC, SERIAL, make_entry
+from tests.conftest import AC, DC, SERIAL, make_entry
 
 
 async def setup(hass, entry):
@@ -22,7 +22,8 @@ async def setup(hass, entry):
 
 
 async def test_entities_have_the_expected_ids_and_values(hass, inverter, clock):
-    await setup(hass, make_entry())
+    entry = make_entry()
+    await setup(hass, entry)
     expected = {
         "ac_power": "2300",
         "ac_energy": "123456.789",
@@ -49,7 +50,23 @@ async def test_entities_have_the_expected_ids_and_values(hass, inverter, clock):
         "advanced_power_control_enable": "1",
         "enable_dynamic_power_control": "1",
         "active_reactive_preference": "0",
+        "ac_current_phase_a": "10.0",
+        "ac_current_phase_b": STATE_UNKNOWN,
+        "ac_current_phase_c": STATE_UNKNOWN,
+        "ac_voltage_phase_a": "240.0",
+        "ac_voltage_phase_b": STATE_UNKNOWN,
+        "ac_voltage_phase_c": STATE_UNKNOWN,
+        "export_control_mode": "1",
+        "export_limit_mode": "0",
+        "export_site_limit": "3000.0",
     }
+    registry = er.async_get(hass)
+    for suffix in expected:
+        entity_id = f"sensor.solaredge_direct_{suffix}"
+        if registry.async_get(entity_id).disabled:  # per-phase sensors are opt-in
+            registry.async_update_entity(entity_id, disabled_by=None)
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
     for suffix, value in expected.items():
         state = hass.states.get(f"sensor.solaredge_direct_{suffix}")
         assert state is not None, suffix
@@ -172,3 +189,57 @@ async def test_diagnostics_without_control(hass, hass_client, inverter, clock):
     await setup(hass, entry)
     diag = await get_diagnostics_for_config_entry(hass, hass_client, entry)
     assert diag["control"] is None
+
+
+async def test_output_limited_follows_the_throttled_status(hass, inverter, clock):
+    entry = make_entry()
+    await setup(hass, entry)
+    assert hass.states.get("binary_sensor.solaredge_direct_output_limited").state == "off"
+    dc = list(DC)
+    dc[11] = 5
+    inverter.set_dc(dc)
+    await entry.runtime_data.coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.solaredge_direct_output_limited").state == "on"
+
+
+async def test_output_limited_is_unavailable_while_asleep(hass, inverter, clock):
+    inverter.online = False
+    await setup(hass, make_entry())
+    assert hass.states.get("binary_sensor.solaredge_direct_output_limited").state == STATE_UNAVAILABLE
+
+
+async def test_power_limit_in_watts_mirrors_the_percent_limit(hass, inverter, clock):
+    await setup(hass, make_entry())
+    entity = "number.solaredge_direct_production_limit_power"
+    state = hass.states.get(entity)
+    assert (state.state, state.attributes["max"], state.attributes["unit_of_measurement"]) == ("5000.0", 5000.0, "W")
+
+    await hass.services.async_call("number", "set_value", {"entity_id": entity, "value": 1500}, blocking=True)
+    await hass.async_block_till_done()
+    assert hass.states.get("number.solaredge_direct_production_limit").state == "30.0"
+    assert hass.states.get(entity).state == "1500.0"
+
+    await hass.services.async_call(
+        "number", "set_value", {"entity_id": "number.solaredge_direct_production_limit", "value": 40}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(entity).state == "2000.0"
+
+
+async def test_power_limit_in_watts_unavailable_until_base_power_is_known(hass, inverter, clock):
+    inverter.online = False
+    await setup(hass, make_entry())
+    assert hass.states.get("number.solaredge_direct_production_limit_power").state == STATE_UNAVAILABLE
+    inverter.online = True
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=61))
+    await hass.async_block_till_done()
+    assert hass.states.get("number.solaredge_direct_production_limit_power").state == "5000.0"
+
+
+async def test_power_limit_in_watts_removed_when_control_is_off(hass, inverter, clock):
+    entry = make_entry()
+    await setup(hass, entry)
+    hass.config_entries.async_update_entry(entry, options={"enable_control": False})
+    await hass.async_block_till_done()
+    assert hass.states.get("number.solaredge_direct_production_limit_power") is None

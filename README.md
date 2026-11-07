@@ -24,8 +24,12 @@ Home Assistant integration for SolarEdge inverters over local Modbus TCP: live t
 | Entity | Notes |
 |---|---|
 | AC power, AC energy, AC current, AC voltage, AC frequency, AC apparent/reactive power, AC power factor | AC energy is a lifetime `total_increasing` counter in kWh. |
+| AC current / voltage phase A, B, C | Disabled by default; B and C only report on three-phase inverters. |
 | DC power, DC current, DC voltage, Heatsink temperature, Status | Status is text (MPPT (Producing), Sleeping, Throttled …). |
-| Production limit (`number`) | Only with control enabled. Survives restarts. |
+| Production limit (`number`) | Percent of rated power. Only with control enabled. Survives restarts. |
+| Production limit power (`number`) | The same limit in watts; changing either one updates the other. |
+| Output limited (`binary_sensor`) | On while the inverter reports it is throttling its output. |
+| Export control mode, Export limit mode, Export site limit | Diagnostic, read only: the meter-based export limit configured on the inverter. |
 | Dynamic active power limit and other control registers | Diagnostic sensors that show what the inverter has accepted. |
 
 The inverter's Modbus server is off at night, so entities are unavailable until sunrise.

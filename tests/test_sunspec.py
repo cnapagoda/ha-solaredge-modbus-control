@@ -43,7 +43,13 @@ def test_decode_ac():
     ac = sunspec.decode_ac(pack(">HHHHhHHHHHHhhhHhhhhhhhIh", *AC))
     assert ac == {
         "ac_current": 10.0,
+        "ac_current_a": 10.0,
+        "ac_current_b": None,
+        "ac_current_c": None,
         "ac_voltage": 240.0,
+        "ac_voltage_a": 240.0,
+        "ac_voltage_b": None,
+        "ac_voltage_c": None,
         "ac_power": 2300,
         "ac_frequency": 50.02,
         "ac_apparent_power": 2350,

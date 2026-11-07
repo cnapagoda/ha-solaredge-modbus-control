@@ -19,7 +19,7 @@ from .coordinator import SolarEdgeCoordinator
 from .modbus import ModbusTcpClient
 from .power_control import PowerLimitController
 
-PLATFORMS = [Platform.SENSOR, Platform.NUMBER]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SENSOR]
 
 
 @dataclass

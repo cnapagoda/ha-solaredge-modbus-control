@@ -127,11 +127,46 @@
       },
       "active_reactive_preference": {
         "name": "Active-reactive preference"
+      },
+      "ac_current_a": {
+        "name": "AC current phase A"
+      },
+      "ac_voltage_a": {
+        "name": "AC voltage phase A"
+      },
+      "ac_current_b": {
+        "name": "AC current phase B"
+      },
+      "ac_voltage_b": {
+        "name": "AC voltage phase B"
+      },
+      "ac_current_c": {
+        "name": "AC current phase C"
+      },
+      "ac_voltage_c": {
+        "name": "AC voltage phase C"
+      },
+      "export_control_mode": {
+        "name": "Export control mode"
+      },
+      "export_limit_mode": {
+        "name": "Export limit mode"
+      },
+      "export_site_limit": {
+        "name": "Export site limit"
       }
     },
     "number": {
       "production_limit": {
         "name": "Production limit"
+      },
+      "production_limit_power": {
+        "name": "Production limit power"
+      }
+    },
+    "binary_sensor": {
+      "output_limited": {
+        "name": "Output limited"
       }
     }
   }

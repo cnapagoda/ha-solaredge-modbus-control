@@ -56,6 +56,14 @@ SENSORS: tuple[SolarEdgeSensorDescription, ...] = (
     _s("ac_energy", SensorDeviceClass.ENERGY, UnitOfEnergy.KILO_WATT_HOUR, SensorStateClass.TOTAL_INCREASING),
     _s("ac_current", SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE),
     _s("ac_voltage", SensorDeviceClass.VOLTAGE, UnitOfElectricPotential.VOLT),
+    *(
+        _s(f"ac_current_{phase}", SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE, enabled=False)
+        for phase in "abc"
+    ),
+    *(
+        _s(f"ac_voltage_{phase}", SensorDeviceClass.VOLTAGE, UnitOfElectricPotential.VOLT, enabled=False)
+        for phase in "abc"
+    ),
     _s("ac_frequency", SensorDeviceClass.FREQUENCY, UnitOfFrequency.HERTZ),
     _s("ac_apparent_power", SensorDeviceClass.APPARENT_POWER, UnitOfApparentPower.VOLT_AMPERE),
     _s("ac_reactive_power", SensorDeviceClass.REACTIVE_POWER, UnitOfReactivePower.VOLT_AMPERE_REACTIVE),
@@ -77,6 +85,9 @@ SENSORS: tuple[SolarEdgeSensorDescription, ...] = (
     _s("advanced_power_control", state_class=None, category=_DIAG),
     _s("dynamic_power_control", state_class=None, category=_DIAG),
     _s("active_reactive_preference", state_class=None, category=_DIAG),
+    _s("export_control_mode", state_class=None, category=_DIAG),
+    _s("export_limit_mode", state_class=None, category=_DIAG),
+    _s("export_site_limit", SensorDeviceClass.POWER, UnitOfPower.WATT, category=_DIAG),
 )
 
 

@@ -39,7 +39,10 @@ def pack(fmt: str, *values: int) -> list[int]:
     return list(struct.unpack(f">{len(raw) // 2}H", raw))
 
 
-AC = (1000, 0, 0, 0, -2, 0, 0, 0, 2400, 0, 0, -1, 2300, 0, 5002, -2, 2350, 0, -100, 0, 98, 0, 123456789, 0)
+AC = (
+    1000, 1000, 65535, 65535, -2, 0, 0, 0, 2400, 65535, 65535, -1,
+    2300, 0, 5002, -2, 2350, 0, -100, 0, 98, 0, 123456789, 0,
+)
 DC = (500, -2, 4000, -1, 2400, 0, 0, 450, 0, 0, -1, 4, 7)
 
 
@@ -71,6 +74,9 @@ class FakeInverter:
         self.set(REG_RAMP_UP, encode_float32(100))
         self.set(REG_RAMP_DOWN, encode_float32(100))
         self.set(REG_DYNAMIC_LIMIT, encode_float32(100))
+        self.set(0xE000, [1])
+        self.set(0xE001, [0])
+        self.set(0xE002, encode_float32(3000))
 
     def set(self, address: int, values: list[int]) -> None:
         for offset, value in enumerate(values):
