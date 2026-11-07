@@ -1,0 +1,138 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to a SolarEdge inverter",
+        "description": "Enable Modbus over TCP on the inverter first (SetApp: Commissioning > Site Communication > Modbus TCP). Only one Modbus client can be connected at a time.",
+        "data": {
+          "name": "Name",
+          "host": "Host",
+          "port": "Port",
+          "slave": "Modbus unit ID",
+          "enable_control": "Allow controlling the production limit"
+        },
+        "data_description": {
+          "enable_control": "Writes the inverter's Dynamic Power Control registers. Leave off for read-only monitoring."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure the connection",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "slave": "Modbus unit ID"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the inverter. Check the address and that Modbus TCP is enabled and not used by another client.",
+      "not_sunspec": "The device did not answer as a SunSpec inverter."
+    },
+    "abort": {
+      "already_configured": "This inverter is already configured.",
+      "reconfigure_successful": "The connection was updated.",
+      "unique_id_mismatch": "That is a different inverter."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Update interval (seconds)",
+          "enable_control": "Allow controlling the production limit",
+          "command_timeout": "Command timeout (seconds)",
+          "fallback_limit": "Fallback limit (%)"
+        },
+        "data_description": {
+          "command_timeout": "If the limit is not refreshed within this time the inverter returns to the fallback limit.",
+          "fallback_limit": "Output limit the inverter uses when the timeout expires. 100 means no limit."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "ac_power": {
+        "name": "AC power"
+      },
+      "ac_energy": {
+        "name": "AC energy"
+      },
+      "ac_current": {
+        "name": "AC current"
+      },
+      "ac_voltage": {
+        "name": "AC voltage"
+      },
+      "ac_frequency": {
+        "name": "AC frequency"
+      },
+      "ac_apparent_power": {
+        "name": "AC apparent power"
+      },
+      "ac_reactive_power": {
+        "name": "AC reactive power"
+      },
+      "ac_power_factor": {
+        "name": "AC power factor"
+      },
+      "dc_power": {
+        "name": "DC power"
+      },
+      "dc_current": {
+        "name": "DC current"
+      },
+      "dc_voltage": {
+        "name": "DC voltage"
+      },
+      "heatsink_temperature": {
+        "name": "Heatsink temperature"
+      },
+      "status": {
+        "name": "Status"
+      },
+      "status_code": {
+        "name": "Status code"
+      },
+      "status_vendor_code": {
+        "name": "Status vendor code"
+      },
+      "dynamic_limit": {
+        "name": "Dynamic active power limit"
+      },
+      "max_active_power": {
+        "name": "Max active power (rated)"
+      },
+      "power_base": {
+        "name": "Power base (100% reference)"
+      },
+      "command_timeout": {
+        "name": "Command timeout"
+      },
+      "fallback_limit": {
+        "name": "Fallback active power limit"
+      },
+      "ramp_up_rate": {
+        "name": "Ramp up rate"
+      },
+      "ramp_down_rate": {
+        "name": "Ramp down rate"
+      },
+      "advanced_power_control": {
+        "name": "Advanced power control enable"
+      },
+      "dynamic_power_control": {
+        "name": "Enable dynamic power control"
+      },
+      "active_reactive_preference": {
+        "name": "Active-reactive preference"
+      }
+    },
+    "number": {
+      "production_limit": {
+        "name": "Production limit"
+      }
+    }
+  }
+}
