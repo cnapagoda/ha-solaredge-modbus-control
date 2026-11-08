@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix: with control enabled, telemetry stopped updating. Each limit write restarted the poll timer, and the 40 s heartbeat is shorter than the 60 s scan interval.
+
 - Per-phase AC current and voltage sensors (A, B, C; disabled by default, B and C are only meaningful on three-phase inverters).
 - Production limit in watts (`number`), kept in step with the percent limit using the inverter's 100 % reference power.
 - "Output limited" binary sensor, on while the inverter reports it is throttling.

@@ -23,7 +23,7 @@ from custom_components.solaredge_modbus_control.sunspec import (
     decode_config,
     encode_uint32,
 )
-from tests.conftest import make_entry
+from tests.conftest import AC, make_entry
 
 NUMBER = "number.solaredge_direct_production_limit"
 RESTORED = {"native_max_value": 100, "native_min_value": 0, "native_step": 0.1, "native_unit_of_measurement": "%"}
@@ -243,3 +243,18 @@ async def test_no_usable_restored_value_keeps_the_default(hass, inverter, clock,
     )
     controller = await setup(hass, make_entry())
     assert controller.target == 100.0
+
+
+async def test_heartbeat_writes_do_not_starve_telemetry_polling(hass, inverter, clock, freezer):
+    """Writes every 40 s must not keep pushing back the 60 s telemetry poll."""
+    await setup(hass, make_entry())
+    ac = list(AC)
+    ac[12] = 1234
+    inverter.set_ac(ac)
+    for _ in range(30):  # 5 minutes in 10 s control ticks
+        clock.advance(10)
+        freezer.tick(timedelta(seconds=10))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+    assert len(inverter.writes_to(REG_DYNAMIC_LIMIT)) >= 6
+    assert hass.states.get("sensor.solaredge_direct_ac_power").state == "1234"

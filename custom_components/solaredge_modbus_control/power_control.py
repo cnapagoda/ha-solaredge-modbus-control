@@ -117,7 +117,10 @@ class PowerLimitController:
         self._last_written = self.target
         self._written_monotonic = time.monotonic()
         self.last_written_at = dt_util.utcnow()
-        self.coordinator.async_set_updated_data({**data, "dynamic_limit": round(self.target, 2)})
+        # Not async_set_updated_data: that restarts the poll timer, and a heartbeat shorter than
+        # the scan interval would then stop telemetry polling altogether.
+        self.coordinator.data = {**data, "dynamic_limit": round(self.target, 2)}
+        self.coordinator.async_update_listeners()
         for listener in self._listeners:
             listener()
 
