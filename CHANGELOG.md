@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Fix: with control enabled, telemetry stopped updating. Each limit write restarted the poll timer, and the 40 s heartbeat is shorter than the 60 s scan interval.
 - Fix: a limit write could put older telemetry back for a moment, which made the lifetime energy go down ("not strictly increasing" warnings).

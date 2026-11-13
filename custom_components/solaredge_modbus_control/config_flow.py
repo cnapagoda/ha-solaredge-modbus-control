@@ -4,7 +4,7 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
 import homeassistant.helpers.config_validation as cv
@@ -39,7 +39,7 @@ async def _identify(
 
     The inverter accepts one connection only: `entry`, and any other loaded entry
     on the same address, gives up its connection while this runs."""
-    loaded = hass.config_entries.async_loaded_entries(DOMAIN)
+    loaded = [e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
     async with contextlib.AsyncExitStack() as stack:
         for other in loaded:
             if other is entry or (other.data[CONF_HOST], other.data[CONF_PORT]) == (host, port):
