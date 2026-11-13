@@ -122,7 +122,8 @@ def decode_ac(registers: list[int]) -> dict[str, float | None]:
         "ac_apparent_power": scale(v[16], v[17]),
         "ac_reactive_power": scale(v[18], v[19]),
         "ac_power_factor": scale(v[20], v[21]),
-        "ac_energy": scale(v[22], v[23], 0.001, 3),
+        # SunSpec accumulators report 0 for "not implemented".
+        "ac_energy": scale(v[22], v[23], 0.001, 3) if v[22] else None,
     }
 
 

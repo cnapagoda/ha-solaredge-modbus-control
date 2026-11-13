@@ -1,11 +1,12 @@
 """Config, reconfigure and options flows."""
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 
@@ -31,12 +32,23 @@ from .modbus import ModbusError, ModbusTcpClient
 from .sunspec import COMMON_ADDRESS, COMMON_COUNT, Identity, parse_identity
 
 
-async def _identify(host: str, port: int, slave: int) -> Identity:
-    client = ModbusTcpClient(host, port, slave)
-    try:
-        return parse_identity(await client.read_holding_registers(COMMON_ADDRESS, COMMON_COUNT))
-    finally:
-        await client.close()
+async def _identify(
+    hass: HomeAssistant, host: str, port: int, slave: int, entry: ConfigEntry | None = None
+) -> Identity:
+    """Read the inverter's identity.
+
+    The inverter accepts one connection only: `entry`, and any other loaded entry
+    on the same address, gives up its connection while this runs."""
+    loaded = hass.config_entries.async_loaded_entries(DOMAIN)
+    async with contextlib.AsyncExitStack() as stack:
+        for other in loaded:
+            if other is entry or (other.data[CONF_HOST], other.data[CONF_PORT]) == (host, port):
+                await stack.enter_async_context(other.runtime_data.client.paused())
+        client = ModbusTcpClient(host, port, slave)
+        try:
+            return parse_identity(await client.read_holding_registers(COMMON_ADDRESS, COMMON_COUNT))
+        finally:
+            await client.close()
 
 
 def _connection_schema(host: str = "", port: int = DEFAULT_PORT, slave: int = DEFAULT_SLAVE) -> dict:
@@ -54,7 +66,9 @@ class SolarEdgeConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                identity = await _identify(user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_SLAVE])
+                identity = await _identify(
+                    self.hass, user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_SLAVE]
+                )
             except ModbusError:
                 errors["base"] = "cannot_connect"
             except ValueError:
@@ -92,7 +106,9 @@ class SolarEdgeConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                identity = await _identify(user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_SLAVE])
+                identity = await _identify(
+                    self.hass, user_input[CONF_HOST], user_input[CONF_PORT], user_input[CONF_SLAVE], entry
+                )
             except ModbusError:
                 errors["base"] = "cannot_connect"
             except ValueError:

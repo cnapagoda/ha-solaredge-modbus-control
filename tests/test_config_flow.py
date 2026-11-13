@@ -51,6 +51,22 @@ async def test_already_configured(hass, inverter, clock):
     assert result["reason"] == "already_configured"
 
 
+async def test_adding_an_address_in_use_pauses_the_entry_that_uses_it(hass, inverter, clock):
+    entry = make_entry()
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    result = await start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER | {"host": "192.0.2.99"})
+    assert result["reason"] == "already_configured"
+    assert inverter.pauses == 0
+    result = await start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER | {"slave": 2})
+    assert result["reason"] == "already_configured"
+    assert inverter.pauses == 1
+    assert inverter.reads_while_paused == 1
+
+
 async def test_reconfigure(hass, inverter, clock):
     entry = make_entry()
     entry.add_to_hass(hass)
@@ -62,6 +78,9 @@ async def test_reconfigure(hass, inverter, clock):
         result["flow_id"], {"host": "192.0.2.20", "port": 1503, "slave": 2}
     )
     assert result["reason"] == "reconfigure_successful"
+    # The inverter accepts one connection: the running entry let go of it for the check.
+    assert inverter.pauses == 1
+    assert inverter.reads_while_paused == 1
     assert (entry.data["host"], entry.data["port"], entry.data["slave"]) == ("192.0.2.20", 1503, 2)
     await hass.async_block_till_done()
 

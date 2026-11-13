@@ -1,6 +1,8 @@
 """Fixtures: a fake inverter, so no test talks to real hardware."""
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import struct
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -52,10 +54,17 @@ class FakeInverter:
     def __init__(self) -> None:
         self.online = True
         self.illegal: set[int] = set()
+        self.read_error: Exception | None = None
         self.write_error: Exception | None = None
         self.writes: list[tuple[str, int, list[int]]] = []
+        self.write_attempts = 0
+        self.gate: asyncio.Event | None = None  # when set, writes wait for it
         self.reads = 0
         self.closed = False
+        self.shut = False
+        self.pauses = 0
+        self.reads_while_paused = 0
+        self._paused = False
         self.memory: dict[int, int] = {}
         self.set(40000, [0x5375, 0x6E53, 1, 65])
         self.set(40004, text("SolarEdge", 16))
@@ -90,8 +99,11 @@ class FakeInverter:
 
     async def read_holding_registers(self, address: int, count: int) -> list[int]:
         self.reads += 1
+        self.reads_while_paused += self._paused
         if not self.online:
             raise ModbusConnectionError("offline")
+        if self.read_error is not None:
+            raise self.read_error
         if address in self.illegal:
             raise ModbusExceptionResponse(3, 2)
         return [self.memory.get(address + i, 0) for i in range(count)]
@@ -103,6 +115,9 @@ class FakeInverter:
         await self._write("multiple", address, values)
 
     async def _write(self, kind: str, address: int, values: list[int]) -> None:
+        self.write_attempts += 1
+        if self.gate is not None:
+            await self.gate.wait()
         if not self.online:
             raise ModbusConnectionError("offline")
         if self.write_error is not None:
@@ -112,6 +127,19 @@ class FakeInverter:
 
     async def close(self) -> None:
         self.closed = True
+
+    async def shutdown(self) -> None:
+        self.shut = True
+        await self.close()
+
+    @contextlib.asynccontextmanager
+    async def paused(self):
+        self.pauses += 1
+        self._paused = True
+        try:
+            yield
+        finally:
+            self._paused = False
 
     def writes_to(self, address: int) -> list[list[int]]:
         return [values for _, a, values in self.writes if a == address]

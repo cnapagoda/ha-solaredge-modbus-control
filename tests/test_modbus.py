@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import struct
+from unittest.mock import patch
 
 import pytest
 
@@ -150,7 +151,8 @@ async def test_too_many_late_answers_reset_the_connection(serve):
     with pytest.raises(ModbusProtocolError):
         await client.read_holding_registers(1, 1)
     await client.close()
-    assert server.connections == 1
+    # Tried once more on a new connection.
+    assert server.connections == 2
 
 
 @pytest.mark.parametrize(
@@ -186,9 +188,106 @@ async def test_invalid_header(serve, unit, protocol):
 
 
 async def test_no_answer_times_out(serve):
-    _, client = await serve(lambda tid, unit, pdu: [])
+    server, client = await serve(lambda tid, unit, pdu: [])
+    with pytest.raises(ModbusConnectionError, match="no answer within 0.5 s"):
+        await client.read_holding_registers(1, 1)
+    await client.close()
+    assert server.connections == 2
+
+
+async def test_no_retry_when_switched_off(serve):
+    server, client = await serve(lambda tid, unit, pdu: [])
+    client.retries = 0
     with pytest.raises(ModbusConnectionError):
         await client.read_holding_registers(1, 1)
+    await client.close()
+    assert server.connections == 1
+
+
+async def test_a_lost_answer_is_asked_for_again_on_a_new_connection(serve):
+    server, client = await serve(lambda tid, unit, pdu: [read_answer(tid, 1, [7])] if server.requests[1:] else [])
+    assert await client.read_holding_registers(1, 1) == [7]
+    assert server.connections == 2
+    assert len(server.requests) == 2
+    await client.close()
+
+
+async def test_a_garbled_answer_is_asked_for_again_on_a_new_connection(serve):
+    server, client = await serve(lambda tid, unit, pdu: [frame(tid, pdu if server.requests[1:] else pdu[:2])])
+    await client.write_register(0xF300, 1)
+    assert server.connections == 2
+    await client.close()
+
+
+async def test_shut_down_client_does_not_connect_again(serve):
+    server, client = await serve(lambda tid, unit, pdu: [read_answer(tid, 1)])
+    await client.read_holding_registers(1, 1)
+    await client.shutdown()
+    with pytest.raises(ModbusConnectionError, match="shut down"):
+        await client.read_holding_registers(1, 1)
+    assert server.connections == 1
+
+
+async def test_shutting_down_ends_a_request_in_flight(serve):
+    server, client = await serve(lambda tid, unit, pdu: [])
+    request = asyncio.create_task(client.read_holding_registers(1, 1))
+    await asyncio.sleep(0.05)
+    await client.shutdown()
+    with pytest.raises(ModbusConnectionError):
+        await request
+    assert server.connections == 1
+
+
+async def test_shutting_down_while_connecting_drops_the_new_connection(serve):
+    server, client = await serve(lambda tid, unit, pdu: [read_answer(tid, 1)])
+    connect = asyncio.open_connection
+
+    async def slow_connect(host, port):
+        streams = await connect(host, port)
+        await client.shutdown()
+        return streams
+
+    with (
+        patch("custom_components.solaredge_modbus_control.modbus.asyncio.open_connection", slow_connect),
+        pytest.raises(ModbusConnectionError, match="shut down"),
+    ):
+        await client.read_holding_registers(1, 1)
+    assert client._writer is None
+    assert server.requests == []
+
+
+async def test_paused_client_gives_up_the_connection_and_requests_wait(serve):
+    server, client = await serve(lambda tid, unit, pdu: [read_answer(tid, 1, [5])])
+    await client.read_holding_registers(1, 1)
+    async with client.paused():
+        assert client._writer is None
+        waiting = asyncio.create_task(client.read_holding_registers(1, 1))
+        await asyncio.sleep(0.05)
+        assert not waiting.done()
+        assert len(server.requests) == 1
+    assert await waiting == [5]
+    assert server.connections == 2
+    await client.close()
+
+
+async def test_cancelled_request_does_not_leave_its_answer_for_the_next_one(serve):
+    held: list[bytes] = []
+
+    def responder(tid, unit, pdu):
+        if not held:
+            held.append(read_answer(tid, 1, [111]))
+            return []
+        return [read_answer(tid, 1, [222])]
+
+    server, client = await serve(responder)
+    request = asyncio.create_task(client.read_holding_registers(1, 1))
+    await asyncio.sleep(0.05)
+    request.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await request
+    assert client._writer is None
+    assert await client.read_holding_registers(1, 1) == [222]
+    assert server.connections == 2
     await client.close()
 
 

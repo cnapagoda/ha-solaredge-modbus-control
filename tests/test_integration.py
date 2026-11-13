@@ -11,7 +11,11 @@ from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from pytest_homeassistant_custom_component.components.diagnostics import get_diagnostics_for_config_entry
 
 from custom_components.solaredge_modbus_control.const import DOMAIN
-from custom_components.solaredge_modbus_control.sunspec import REG_MAX_ACTIVE_POWER, encode_float32
+from custom_components.solaredge_modbus_control.sunspec import (
+    REG_FALLBACK_LIMIT,
+    REG_MAX_ACTIVE_POWER,
+    encode_float32,
+)
 from tests.conftest import AC, DC, SERIAL, make_entry
 
 
@@ -126,6 +130,70 @@ async def test_corrupted_power_frame_is_ignored(hass, inverter, clock, caplog):
     assert "corrupted frame" in caplog.text
 
 
+ENERGY = "sensor.solaredge_direct_ac_energy"
+
+
+async def poll_energy(hass, inverter, clock, entry, watt_hours, *, seconds=60):
+    ac = list(AC)
+    ac[22] = watt_hours
+    inverter.set_ac(ac)
+    clock.advance(seconds)
+    await entry.runtime_data.coordinator.async_refresh()
+    await hass.async_block_till_done()
+    return hass.states.get(ENERGY).state
+
+
+async def test_lifetime_energy_follows_normal_production(hass, inverter, clock):
+    entry = make_entry()
+    await setup(hass, entry)
+    assert await poll_energy(hass, inverter, clock, entry, AC[22] + 80) == "123456.869"
+    # A night without contact, then a full day's production in one step.
+    inverter.online = False
+    await poll_energy(hass, inverter, clock, entry, AC[22], seconds=36000)
+    inverter.online = True
+    assert await poll_energy(hass, inverter, clock, entry, AC[22] + 30000) == "123486.789"
+
+
+async def test_lifetime_energy_does_not_go_down_or_jump(hass, inverter, clock, caplog):
+    entry = make_entry()
+    await setup(hass, entry)
+    assert await poll_energy(hass, inverter, clock, entry, AC[22] - 5000) == "123456.789"
+    assert await poll_energy(hass, inverter, clock, entry, AC[22] + 1_000_000) == "123456.789"
+    assert await poll_energy(hass, inverter, clock, entry, 0) == STATE_UNKNOWN
+    assert await poll_energy(hass, inverter, clock, entry, AC[22] + 100) == "123456.889"
+    assert caplog.text.count("Ignoring lifetime energy") == 1
+
+
+async def test_lifetime_energy_that_stays_different_is_accepted(hass, inverter, clock, caplog):
+    entry = make_entry()
+    await setup(hass, entry)
+    for _ in range(4):
+        assert await poll_energy(hass, inverter, clock, entry, 1000) == "123456.789"
+    assert await poll_energy(hass, inverter, clock, entry, 1000) == "1.0"
+    assert caplog.text.count("Ignoring lifetime energy") == 1
+    assert "accepting it" in caplog.text
+
+
+async def test_lifetime_energy_without_a_rated_power_only_refuses_to_go_down(hass, inverter, clock):
+    inverter.illegal = {REG_MAX_ACTIVE_POWER}
+    entry = make_entry(control=False)
+    await setup(hass, entry)
+    assert await poll_energy(hass, inverter, clock, entry, AC[22] + 1_000_000) == "124456.789"
+    assert await poll_energy(hass, inverter, clock, entry, AC[22]) == "124456.789"
+
+
+async def test_settings_are_read_again_after_an_outage_and_floats_are_rounded(hass, inverter, clock):
+    entry = make_entry(control=False)
+    await setup(hass, entry)
+    inverter.online = False
+    await entry.runtime_data.coordinator.async_refresh()
+    inverter.set(REG_FALLBACK_LIMIT, encode_float32(33.3))
+    inverter.online = True
+    await entry.runtime_data.coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.solaredge_direct_fallback_active_power_limit").state == "33.3"
+
+
 async def test_register_the_inverter_refuses_is_unknown(hass, inverter, clock):
     inverter.illegal = {REG_MAX_ACTIVE_POWER, 0xF322}
     await setup(hass, make_entry())
@@ -159,6 +227,7 @@ async def test_unload(hass, inverter, clock):
     await setup(hass, entry)
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert inverter.closed
+    assert inverter.shut
     assert entry.state is ConfigEntryState.NOT_LOADED
 
 

@@ -59,6 +59,11 @@ def test_decode_ac():
     }
 
 
+def test_energy_counter_of_zero_is_not_a_reading():
+    ac = sunspec.decode_ac(pack(">HHHHhHHHHHHhhhHhhhhhhhIh", *AC[:22], 0, 0))
+    assert ac["ac_energy"] is None
+
+
 def test_decode_dc():
     dc = sunspec.decode_dc(pack(">HhHhhhhhhhhHH", *DC))
     assert dc == {

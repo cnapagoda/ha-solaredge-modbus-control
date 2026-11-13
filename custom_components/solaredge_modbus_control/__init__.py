@@ -63,5 +63,8 @@ async def _reload(hass: HomeAssistant, entry: SolarEdgeConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: SolarEdgeConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        await entry.runtime_data.client.close()
+        if (controller := entry.runtime_data.controller) is not None:
+            controller.stop()
+        # Not close(): a request still in flight must not open the connection again.
+        await entry.runtime_data.client.shutdown()
     return unloaded
