@@ -15,9 +15,11 @@ Home Assistant integration for SolarEdge inverters over local Modbus TCP: live t
 
 ## Install
 
-[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=cnapagoda&repository=ha-solaredge-modbus-control&category=integration)
+1. In HACS, search for **SolarEdge Modbus Control** and download it.
 
-1. In HACS, add this repository as a custom repository (type *Integration*) and install **SolarEdge Modbus Control**, or copy `custom_components/solaredge_modbus_control` from the latest release into your `custom_components` folder.
+   [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=cnapagoda&repository=ha-solaredge-modbus-control&category=integration)
+
+   Not listed? Add this repository as a custom repository (type *Integration*) first. Without HACS, copy `custom_components/solaredge_modbus_control` from the latest release into your `custom_components` folder.
 2. Restart Home Assistant.
 3. *Settings → Devices & services → Add integration → SolarEdge Modbus Control*. Enter the inverter's address (default port 1502) and tick **Allow controlling the production limit** if you want the number entity.
 
